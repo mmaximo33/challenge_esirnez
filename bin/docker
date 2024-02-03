@@ -59,6 +59,7 @@ fi
 case "$1" in
   "up")
     ${DOCKER_COMPOSE_COMMAND} up -d --build
+    ${DOCKER_COMPOSE_COMMAND} exec app /bin/bash -c "a2enmod rewrite && service apache2 restart"
     sudo chown -R $USER:www-data app
     print_url
     ;;

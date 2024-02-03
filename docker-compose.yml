@@ -10,8 +10,7 @@ services:
       - ./app:/var/www/html
     ports:
       - "80:80"
-    environment:
-      - PHP_ERROR_REPORTING=E_ALL
+    environment: ["PHP_ERROR_REPORTING=E_ALL"]
 
   database:
     image: mariadb:10.4
