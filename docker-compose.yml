@@ -1,0 +1,39 @@
+version: '3'
+
+services:
+  app:
+    image: php:5.6-apache
+    restart: always
+    container_name: ${PROJECT_NAME}-app
+    env_file: .env
+    volumes:
+      - ./app:/var/www/html
+    ports:
+      - "80:80"
+    environment:
+      - PHP_ERROR_REPORTING=E_ALL
+
+  database:
+    image: mariadb:10.4
+    restart: always
+    container_name: ${PROJECT_NAME}-database
+    env_file: .env
+    ports: ['3306:3306']
+    volumes:
+      - .docker/database:/var/lib/mysql
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    restart: always
+    container_name: ${PROJECT_NAME}-pma
+    env_file: .env
+    links:
+      - ${MYSQL_SERVICE_NAME}
+    ports: ['8080:80']
+    depends_on:
+      - ${MYSQL_SERVICE_NAME}
+
+networks:
+  zenrise:
+volumes:
+  zenrise:

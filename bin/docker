@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+# Reutilizado de https://github.com/mmaximo33/EFDE/
+
+print_url(){
+  URL="http://localhost"
+  echo "Check URL "
+  echo "   - ${URL}"
+  echo "   - ${URL}:8080"
+
+  open "${URL}"
+}
+
+# Read a single char from /dev/tty, prompting with "$*"
+# Note: pressing enter will return a null string. Perhaps a version terminated with X and then remove it in caller?
+# See https://unix.stackexchange.com/a/367880/143394 for dealing with multi-byte, etc.
+efde_get_keypress() {
+  local REPLY IFS=
+  printf >/dev/tty '%s' "$*"
+  [[ $ZSH_VERSION ]] && read -rk1 # Use -u0 to read from STDIN
+  # See https://unix.stackexchange.com/q/383197/143394 regarding '\n' -> ''
+  [[ $BASH_VERSION ]] && read </dev/tty -rn1
+  printf '%s' "$REPLY"
+}
+
+# Get a y/n from the user, return yes=0, no=1 enter=$2
+# Prompt using $1.
+# If set, return $2 on pressing enter, useful for cancel or defualting
+efde_get_yes_keypress() {
+  local prompt="${1:-Are you sure [y/n]? }"
+  local enter_return=$2
+  local REPLY
+  # [[ ! $prompt ]] && prompt="[y/n]? "
+  while REPLY=$(efde_get_keypress "$prompt"); do
+    [[ $REPLY ]] && printf '\n' # $REPLY blank if user presses enter
+    case "$REPLY" in
+    Y | y) return 0 ;;
+    N | n) return 1 ;;
+    '') [[ $enter_return ]] && return "$enter_return" ;;
+    esac
+  done
+}
+
+# Credit: http://unix.stackexchange.com/a/14444/143394
+# Prompt to confirm, defaulting to NO on <enter>
+# Usage: confirm "Dangerous. Are you sure?" && rm *
+efde_confirm() {
+  local prompt="${*:-Are you sure} [y/N]? "
+  efde_get_yes_keypress "$prompt" 1
+}
+
+
+if docker compose version > /dev/null 2>&1; then
+  DOCKER_COMPOSE_COMMAND="docker compose"
+else
+  DOCKER_COMPOSE_COMMAND="docker-compose"
+fi
+
+case "$1" in
+  "up")
+    ${DOCKER_COMPOSE_COMMAND} up -d --build
+    sudo chown -R $USER:www-data app
+    print_url
+    ;;
+  "start")
+    ${DOCKER_COMPOSE_COMMAND} start
+    print_url
+    ;;
+  "stop")
+    echo "Deteniendo el contenedor Docker..."
+    ${DOCKER_COMPOSE_COMMAND} stop
+    ;;
+  "allstop")
+    echo "Stop apache"
+    sudo service apache2 stop
+    echo "Stop all containers"
+    docker stop $(docker ps -aq)
+    ;;
+  "restart")
+    ${DOCKER_COMPOSE_COMMAND} restart
+    print_url
+    ;;
+  "removeproject")
+    PROJECT=$(dirname $(dirname "$(readlink -f "$0")"))
+    if efde_confirm "Desea eliminar el siguiente directorio $PROJECT"; then
+      ${DOCKER_COMPOSE_COMMAND} down
+      cd "$PROJECT/.."
+      sudo rm -rf "$PROJECT"
+    fi
+    ;;
+  "logs")
+    ${DOCKER_COMPOSE_COMMAND} logs -f
+    ;;
+  *)
+    echo "Uso: $0 {up|start|allstop|stop|restart|logs|removeproject}"
+    exit 1
+    ;;
+esac
