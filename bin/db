@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+
+if docker compose version > /dev/null 2>&1; then
+  DOCKER_COMPOSE_COMMAND="docker compose"
+else
+  DOCKER_COMPOSE_COMMAND="docker-compose"
+fi
+
+action_msg(){
+  local COLOR_RESET="\033[0m"
+  local CYAN="\033[0;36m"
+  local B_CYAN="\033[1;36m"
+
+  # shellcheck disable=SC2145
+  printf "$B_CYAN # > RUN ${@} $COLOR_RESET\n"
+}
+
+
+source .env
+DATABASE_VARIABLES="$MYSQL_SERVICE_NAME mysql -h$MYSQL_SERVICE_NAME -u$MYSQL_USER -p$MYSQL_PASSWORD"
+
+action_clean(){
+  ${DOCKER_COMPOSE_COMMAND} exec -i $DATABASE_VARIABLES -e "DROP DATABASE $MYSQL_DATABASE;"
+  ${DOCKER_COMPOSE_COMMAND} exec -i $DATABASE_VARIABLES -e "CREATE DATABASE $MYSQL_DATABASE;"
+  ${DOCKER_COMPOSE_COMMAND} exec -i $MYSQL_SERVICE_NAME mysql -h$MYSQL_SERVICE_NAME -uroot -p$MYSQL_ROOT_PASSWORD -e "GRANT ALL PRIVILEGES ON $MYSQL_DATABASE.* TO '$MYSQL_USER'@'localhost' IDENTIFIED BY '$MYSQL_PASSWORD';"
+  action_msg "CLEAN Database $MYSQL_DATABASE"
+}
+
+action_schema(){
+  local PATH_SCHEMA="docs/database/create_schema.sql"
+  ${DOCKER_COMPOSE_COMMAND} exec -T $DATABASE_VARIABLES $MYSQL_DATABASE < $PATH_SCHEMA
+  action_msg "LOAD Schema $PATH_SCHEMA"
+}
+
+action_data(){
+  local PATH_DATA="docs/database/create_data.sql"
+  ${DOCKER_COMPOSE_COMMAND} exec -T $DATABASE_VARIABLES $MYSQL_DATABASE < $PATH_DATA
+  action_msg "LOAD Data $PATH_DATA "
+
+}
+
+action_demo(){
+  action_msg "Load DataDemo "
+}
+
+action_all(){
+  action_clean
+  action_schema
+  action_data
+}
+
+main(){
+  case "$1" in
+    "clean")    action_clean  ;;
+    "schema")   action_schema ;;
+    "data")     action_data   ;;
+    "all")      action_all    ;;
+    "demo")     action_demo   ;;
+    *)
+      echo "Uso: $0 {clean|schema|data|all|demo}"
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
